@@ -1,0 +1,436 @@
+  /***************************************************************************
+                            cliente.c  -  description
+                               -------------------
+      begin                : Wed Apr 6 2005
+      copyright            : (C) 2005 by
+      email                :
+   ***************************************************************************/
+
+  /***************************************************************************
+   *                                                                         *
+   *   This program is free software; you can redistribute it and/or modify  *
+   *   it under the terms of the GNU General Public License as published by  *
+   *   the Free Software Foundation; either version 2 of the License, or     *
+   *   (at your option) any later version.                                   *
+   *                                                                         *
+   ***************************************************************************/
+
+  #include <linpal.h>
+  #include <stdio.h>
+  #include "packets.h"
+  #define lpc_send pppoes_send.payload.information
+  #define lpc_rec pppoes_rec.payload.information
+  #define lengthPPPoE sizeof(struct PPPoE_PACKET)
+
+   int OK;
+   int recibido;
+   unsigned short protocolo;
+   unsigned short ppp_protocol;
+   unsigned short session_id=0;
+   unsigned short bytesEnviados=0;
+   char selec[MAX_NAME_LENGTH]="eth1";
+
+   //unsigned short sesion_id=0;
+   unsigned char identifier;
+   unsigned char lpc_identifier;
+   unsigned char dormir=0;
+   unsigned char nombreac[]="unknown_";
+
+  	
+
+   struct ADAPTER Adapter;
+
+
+   struct ETHERNET_FRAME frame_send;
+   struct ETHERNET_FRAME frame_rec;
+   struct PPPoES_PACKET pppoes_rec;
+   struct PPPoES_PACKET pppoes_send;
+   struct PPPoED_PACKET pppoed_rec;
+   struct PPPoED_PACKET pppoed_send;
+   struct OPTION mru;
+   struct NCP_COMPRESSION IPCompressProto;
+
+   void enviar_PADI(void);
+   void recibir_PADO(void);
+   void enviar_PADR(void);
+   void recibir_PADS(void);
+   void enviar_confreq_LCP(void);
+   void recibir_confreq(unsigned short);
+   void enviar_confack_LCP(void);
+   void recibir_confack(unsigned short);
+   void enviar_confreq_NCP(void);
+   void enviar_confack_NCP(void);
+
+
+    int main (void) {
+   
+   
+      pppoed_send.ver_type = VER_TYPE;
+      pppoes_send.ver_type = VER_TYPE;
+   
+      memset(&Adapter,0,sizeof(struct ADAPTER));
+   
+      if ((NepalOpenAdapter(selec, &Adapter))==-1){
+         printNep2Error("Error al abrir el adaptadotr");
+         return -1;
+      }
+   
+      if (NepalSetFilter(&Adapter, NULL, PACKET_TYPE_DIRECTED)==False){
+         printNep2Error("Error NepalSetFilter");
+         exit(1);
+      }
+     // INICIO DE LA FASE DE DESCRUBIMIENTO
+      dormir=5;
+      sleep(dormir);	
+        // Envio por broadcast un paquete tipo PADI
+      enviar_PADI();
+   
+      recibir_PADO();
+      sleep(1);
+   
+        //Envio del paquete PADR
+      enviar_PADR();
+   
+       	// Espero a recibir un paquete tipo PADS
+      recibir_PADS();
+      sleep(1);
+   
+      printf("Fase de descubrimiento concluida. Comienza la fase PPP");
+   
+     // INICIO DE LA SESIÓN PPP
+   
+        // Envio de un confreq
+      enviar_confreq_LCP();
+     	
+      recibir_confreq(0xc021);
+   
+      sleep(1);
+        //envio de un confack
+      enviar_confack_LCP();
+   
+      recibir_confack(0xc021);
+      sleep(1);
+   
+      enviar_confreq_NCP();
+   
+     	
+      recibir_confreq(0x8021);
+      sleep(1);
+     	
+      enviar_confack_NCP();
+   
+     	
+      recibir_confack(0x8021);
+      sleep(1);
+   
+        //Se cierra el adaptador
+      NepalCloseAdapter(&Adapter);
+      return 0;
+   }
+
+    void enviar_PADI(void){
+   
+      pppoed_send.code = 0x09;
+      pppoed_send.session_id = session_id;
+      pppoed_send.length = ntohs(sizeof(pppoed_send.eol)+sizeof(pppoed_send.acname)+sizeof(pppoed_send.serviceName));
+      
+      pppoed_send.serviceName.type[0]=0x01;
+      pppoed_send.serviceName.type[1]=0x01;
+      pppoed_send.eol.length=0;  // Ponemos la longitud a 0, que indica que cualquier servicio es aceptable
+   
+      pppoed_send.acname.type=ntohs(0x0102);
+      pppoed_send.acname.length=ntohs(8);
+      memcpy(pppoed_send.acname.ac_name, nombreac,sizeof(pppoed_send.acname.ac_name));
+   	
+      pppoed_send.eol.type[0]=0x00;
+      pppoed_send.eol.type[1]=0x00;
+      pppoed_send.eol.length=0;
+   
+   
+      NepalEther2Byte("ff:ff:ff:ff:ff:ff", frame_send.DestinationAddress);
+      memcpy(frame_send.SourceAddress,Adapter.CurrentAddress,ETHERNET_ADDRESS_LENGTH);
+       
+      memcpy(frame_send.Data, &pppoed_send, sizeof(pppoed_send));
+   
+      frame_send.Protocol[0]=0x88;
+      frame_send.Protocol[1]=0x63;
+      
+      if((ETHERNET_HEADER_LENGTH + sizeof(pppoed_send))>=60)
+         bytesEnviados=ETHERNET_HEADER_LENGTH + sizeof(pppoed_send);
+      else
+         bytesEnviados=60;
+   
+      OK = NepalSendPacket(&Adapter, &frame_send, bytesEnviados);
+      if (OK==-1){
+         printNep2Error("Error al enviar un paquete PADI");
+         exit(1);
+      }
+      printf("Hola %c\n", (char)(frame_send.Data[0]));
+   
+   }
+
+    void recibir_PADO(void){
+   
+     // Espero a recibir un paquete tipo PADO
+      recibido=0;
+      while(recibido == 0){
+        //comprobar que realmente es un paquete de tipo PADO, si no lo es volver a recibir otro paquete
+         if(NepalReadPacket(&Adapter, &frame_rec, 1) > 0){
+            if(memcmp(&(frame_rec.DestinationAddress), &(Adapter.CurrentAddress),6)==0){
+               memcpy(&protocolo, &(frame_rec.Protocol[0]),2);
+               protocolo=ntohs(protocolo);
+               if(protocolo == 0x8863){
+                  memcpy(&pppoed_rec,&(frame_rec.Data[0]), sizeof(pppoed_rec));
+                  if(pppoed_rec.code== 0x07){
+                  //Guardamos la dirección mac de nuestro servidor
+                     memcpy(frame_send.DestinationAddress,frame_rec.SourceAddress,ETHERNET_ADDRESS_LENGTH);
+                     
+                     memcpy(nombreac, pppoed_rec.acname.ac_name,sizeof( pppoed_rec.acname.ac_name ));
+                  //También habrá que guardar su nombre y diversas cosas más.
+                     recibido++;
+                  }
+               }
+            }
+         }
+      }
+   
+   }
+
+  	
+
+    void enviar_PADR(void){
+      pppoed_send.code = 0x19;
+      
+      memcpy(pppoed_send.acname.ac_name, nombreac, sizeof(pppoed_send.acname.ac_name));
+   
+      memcpy(frame_send.Data, &pppoed_send, sizeof(pppoed_send));
+      
+      if((ETHERNET_HEADER_LENGTH + sizeof(pppoed_send))>=60)
+         bytesEnviados=ETHERNET_HEADER_LENGTH + sizeof(pppoed_send);
+      else
+         bytesEnviados=60;
+   
+      OK = NepalSendPacket(&Adapter, &frame_send, bytesEnviados);
+      if (OK==-1){
+         printNep2Error("Error al enviar un paquete PADS");
+         exit(1);
+      }
+   
+   }
+
+    void recibir_PADS(void){
+   
+      recibido=0;
+      while(recibido == 0){
+        //comprobar que realmente es un paquete de tipo PADO, si no lo es volver a recibir otro paquete
+         if(NepalReadPacket(&Adapter, &frame_rec, 1) > 0){
+            if(memcmp(&(frame_rec.DestinationAddress), &(Adapter.CurrentAddress),6)==0){
+              
+               memcpy(&protocolo, &(frame_rec.Protocol[0]),2);
+               protocolo=ntohs(protocolo);
+               printf("protocolo %d\n",*(frame_rec.Protocol));
+               if(protocolo ==0x8863){
+                  memcpy(&pppoed_rec,&(frame_rec.Data[0]), sizeof(pppoed_rec));
+                  if(pppoed_rec.code== 0x65 && memcmp(pppoed_rec.acname.ac_name,nombreac, sizeof(nombreac))==0){
+                     session_id=pppoed_rec.session_id;
+                  
+                     recibido++;
+                  }
+               }
+            }
+         }
+      }
+   }
+
+
+    void enviar_confreq_LCP(void){
+   
+      pppoes_send.code=0x00;
+      pppoes_send.session_id=session_id;
+      pppoes_send.payload.protocol[0]=0xc0;
+      pppoes_send.payload.protocol[1]=0x21;
+   
+   
+   
+      lpc_send.code=0x1;
+      lpc_identifier=(char)random();
+   
+      lpc_send.identifier=lpc_identifier;
+   
+      mru.type=0x1;
+      mru.length=0x04;
+      mru.data=ntohs(1400);
+      lpc_send.length = ntohs(sizeof(lpc_send)+sizeof(mru));
+      pppoes_send.length = ntohs(sizeof(pppoes_send.payload)+sizeof(mru));
+   
+     	
+      memcpy(frame_send.Data, &pppoes_send, sizeof(pppoes_send));
+      memcpy(frame_send.Data+sizeof(pppoes_send),&mru,sizeof(mru));
+   
+     
+      frame_send.Protocol[0]=0x88;
+      frame_send.Protocol[1]=0x64;
+      
+      if((ETHERNET_HEADER_LENGTH+sizeof(pppoes_send)+sizeof(mru))>=60)
+         bytesEnviados=ETHERNET_HEADER_LENGTH+sizeof(pppoes_send)+sizeof(mru);
+      else
+         bytesEnviados=60;
+   
+   
+      OK = NepalSendPacket(&Adapter, &frame_send,  bytesEnviados);
+      if (OK==-1){
+         printNep2Error("Error al enviar un paquete PADI");
+         exit(1);
+      }
+   
+   }
+
+    void recibir_confreq(unsigned short ppp_proto){
+      recibido=0;
+      while(recibido == 0){
+        //comprobar que realmente es un paquete de tipo PADO, si no lo es volver a recibir otro paquete
+         if(NepalReadPacket(&Adapter, &frame_rec, 1) > 0){
+            if(memcmp(&(frame_rec.DestinationAddress), &(Adapter.CurrentAddress),6)==0){
+               memcpy(&protocolo, &(frame_rec.Protocol[0]),2);
+               protocolo=ntohs(protocolo);
+               printf("protocolo %d\n",*(frame_rec.Protocol));
+               if(protocolo ==0x8864){
+                  memcpy(&pppoes_rec, &(frame_rec.Data[0]), sizeof(pppoes_rec));
+                  memcpy(&ppp_protocol, &(pppoes_rec.payload.protocol[0]),2);
+                  ppp_protocol=ntohs(ppp_protocol);
+                  if(pppoes_rec.code==0x00 && ppp_protocol==ppp_proto){
+                     if((lpc_rec.code==0x1) && (lpc_identifier==lpc_rec.identifier) && (pppoes_rec.session_id==session_id) ){
+                        recibido++;
+                     
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
+
+
+    void enviar_confack_LCP(void){
+        
+      lpc_send.code=0x2;
+      lpc_send.identifier=lpc_identifier;
+       
+      memcpy(&mru, frame_rec.Data+sizeof(pppoes_rec), sizeof(mru));
+      lpc_send.length = ntohs(sizeof(lpc_send)+sizeof(mru));
+      memcpy(frame_send.Data, &pppoes_send, sizeof(pppoes_send));
+      memcpy(frame_send.Data+sizeof(pppoes_send), &mru, sizeof(mru));
+   	  
+      if((ETHERNET_HEADER_LENGTH+sizeof(pppoes_send)+sizeof(mru))>=60)
+         bytesEnviados=ETHERNET_HEADER_LENGTH+sizeof(pppoes_send)+sizeof(mru);
+      else
+         bytesEnviados=60;
+   
+   
+      OK = NepalSendPacket(&Adapter, &frame_send,  bytesEnviados);
+      if (OK==-1){
+         printNep2Error("Error al enviar un paquete PADI");
+         exit(1);
+      }
+   }
+
+
+    void recibir_confack(unsigned short ppp_proto){
+      recibido=0;
+      while(recibido == 0){
+        //comprobar que realmente es un paquete de tipo PADO, si no lo es volver a recibir otro paquete
+         if(NepalReadPacket(&Adapter, &frame_rec, 1) > 0){
+            if(memcmp(&(frame_rec.DestinationAddress), &(Adapter.CurrentAddress),6)==0){
+               memcpy(&protocolo, &(frame_rec.Protocol[0]),2);
+               protocolo=ntohs(protocolo);
+               printf("protocolo %d\n",*(frame_rec.Protocol));
+               if(protocolo ==0x8864){
+                  memcpy(&pppoes_rec, &(frame_rec.Data[0]), sizeof(pppoes_rec));
+                  memcpy(&ppp_protocol, &(pppoes_rec.payload.protocol[0]),2);
+                  ppp_protocol=ntohs(ppp_protocol);
+                  if(pppoes_rec.code==0x00 && ppp_protocol==ppp_proto){
+                     if((lpc_rec.code==0x2) && (lpc_identifier==lpc_rec.identifier)&& (pppoes_rec.session_id==session_id) ){
+                        recibido++;
+                     
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
+
+    void enviar_confreq_NCP(void){
+    
+      IPCompressProto.type=0x02;
+      IPCompressProto.length=0x06;
+      IPCompressProto.data=ntohs(0x002d);
+      IPCompressProto.maxSlotID=15;
+      IPCompressProto.compSlotID=0;
+   
+      pppoes_send.code=0x00;
+      pppoes_send.session_id=session_id;
+      pppoes_send.payload.protocol[0]=0x80;
+      pppoes_send.payload.protocol[1]=0x21;
+   
+   
+   
+      lpc_send.code=0x1;
+   
+   
+      lpc_send.identifier=lpc_identifier;
+   
+   
+      lpc_send.length = ntohs(sizeof(lpc_send)+sizeof(IPCompressProto));
+      pppoes_send.length = ntohs(sizeof(pppoes_send.payload)+sizeof(IPCompressProto));
+   
+     	
+      memcpy(frame_send.Data, &pppoes_send, sizeof(pppoes_send));
+      memcpy(frame_send.Data+sizeof(pppoes_send),&IPCompressProto,sizeof(IPCompressProto));
+   
+   
+      frame_send.Protocol[0]=0x88;
+      frame_send.Protocol[1]=0x64;
+      
+   	    
+      if((ETHERNET_HEADER_LENGTH+sizeof(pppoes_send)+sizeof(IPCompressProto))>=60)
+         bytesEnviados=ETHERNET_HEADER_LENGTH+sizeof(pppoes_send)+sizeof(IPCompressProto);
+      else
+         bytesEnviados=60;
+   
+   
+      OK = NepalSendPacket(&Adapter, &frame_send,  bytesEnviados);
+      if (OK==-1){
+         printNep2Error("Error al enviar un paquete confreq de ncp");
+         exit(1);
+      }
+   
+   }
+
+    void enviar_confack_NCP(void){
+   
+      lpc_send.code=0x2;
+      lpc_send.identifier=lpc_identifier;
+     
+   
+      memcpy(&IPCompressProto, frame_rec.Data+sizeof(pppoes_rec), sizeof(IPCompressProto));
+      lpc_send.length = ntohs(sizeof(lpc_send)+sizeof(IPCompressProto));
+      pppoes_send.length = ntohs(sizeof(pppoes_send.payload)+sizeof(IPCompressProto));
+      memcpy(frame_send.Data, &pppoes_send, sizeof(pppoes_send));
+      memcpy(frame_send.Data+sizeof(pppoes_send), &IPCompressProto, sizeof(IPCompressProto));
+   
+   	      
+      if((ETHERNET_HEADER_LENGTH+sizeof(pppoes_send)+sizeof(IPCompressProto))>=60)
+         bytesEnviados=ETHERNET_HEADER_LENGTH+sizeof(pppoes_send)+sizeof(IPCompressProto);
+      else
+         bytesEnviados=60;
+   
+   
+      OK = NepalSendPacket(&Adapter, &frame_send,  bytesEnviados);
+      if (OK==-1){
+         printNep2Error("Error al enviar un paquete PADI");
+         exit(1);
+      }
+   }
+
+

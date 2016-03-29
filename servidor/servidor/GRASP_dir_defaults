@@ -1,0 +1,95 @@
+
+packets.h
+predefined_macros  __STDC__ 1
+includes  /usr/include\n/opt/openwin/include\n/opt/SUNWmotif/include
+c_parsemode  1
+html  
+point_size  10
+header  
+fnameheader  0
+pagenums  0
+boldkeys  1
+slantcomm  1
+lmargin  .5
+rmargin  .5
+tmargin  1.0
+bmargin  .5
+columns  1
+gutter  .5
+landscape  0
+printer  
+open_pattern  *
+save_pattern  *
+print_dir  /var/home/alum0/00/40/199
+print_pattern  *
+search_txt  
+replace_txt  
+id_only  0
+gotoline  
+insert_dir  /var/home/alum0/00/40/199
+insert_pattern  *
+symbols  1
+data_symbols  1
+boxes  1
+isalign  1
+indent  0
+forcenl  0
+autonumbers  0
+makeflags  
+compilelinkflags  
+compileflags  
+checkflags  
+runstring  
+rundir  
+run_dir  /var/home/alum0/00/40/199
+run_pattern  *
+auto  0
+font  13
+/
+servidor.c
+predefined_macros  __STDC__ 1
+includes  /usr/include\n/opt/openwin/include\n/opt/SUNWmotif/include
+c_parsemode  1
+html  
+point_size  10
+header  
+fnameheader  0
+pagenums  0
+boldkeys  1
+slantcomm  1
+lmargin  .5
+rmargin  .5
+tmargin  1.0
+bmargin  .5
+columns  1
+gutter  .5
+landscape  0
+printer  
+open_pattern  *
+save_pattern  *
+print_dir  /var/home/alum0/00/40/199
+print_pattern  *
+search_txt  
+replace_txt  
+id_only  0
+gotoline  
+insert_dir  /var/home/alum0/00/40/199
+insert_pattern  *
+symbols  1
+data_symbols  1
+boxes  1
+isalign  1
+indent  0
+forcenl  0
+autonumbers  0
+makeflags  
+compilelinkflags  
+compileflags  
+checkflags  
+runstring  
+rundir  
+run_dir  /var/home/alum0/00/40/199
+run_pattern  *
+auto  0
+font  13
+/

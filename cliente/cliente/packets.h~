@@ -1,0 +1,59 @@
+//en este archivo pongo cabeceras de funciones
+// y nuevos tipos de datos como estructuras
+//#ifndef packetsh
+//#define packetsh
+
+#include <linpal.h>
+#define VER_TYPE 0x11
+
+
+   struct TAG{
+      unsigned char type[2];
+      unsigned short length;  
+   };
+   typedef struct TAG * LPTAG;
+   
+   struct LPC_OPTION{
+      unsigned char type;
+      unsigned char length;  //longitud total incluidos los campos type length y data
+      unsigned short data;
+   };
+	
+   typedef struct LPC_OPTION *lpcoption;
+	
+		
+   struct LPC_PACKET{
+      unsigned char code;
+      unsigned char identifier;
+      unsigned short length;  //longitud total incluido los campos code, identifier, length y opciones
+      //struct LPC_OPTION mru;
+   };
+   typedef struct LPC_PACKET * LPCPACKET;
+	
+	
+   struct PPP_PACKET{
+      unsigned char protocol[2];
+      struct LPC_PACKET information;
+   };
+	
+   typedef struct PPP_PACKET * PPPPACKET;
+
+	
+   struct PPPoED_PACKET{
+      unsigned char ver_type;
+      unsigned char code;
+      unsigned short session_id;
+      unsigned short length;  //longitud del payload (de los tags en este caso)
+      struct TAG eol;
+   };
+   typedef struct PPPoED_PACKET * LPPPPDo3_FRAME;
+
+   struct PPPoES_PACKET{
+      unsigned char ver_type;
+      unsigned char code;
+      unsigned short session_id;
+      unsigned short length;   //longitud del campo payload
+      struct PPP_PACKET payload;
+   };
+   typedef struct PPPoES_PACKET * LPPPPSo3_FRAME;
+
