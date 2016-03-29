@@ -1,6 +1,6 @@
 ## Synopsis
 
-This C project is a custom PPPoE (Point-to-Point Protocol over Ethernet), see RFC document below. It is is split in two parts, Client and Server containing the code for the client and server machines connected within an Ethernet network.
+This C project is a custom implementation of PPPoE (Point-to-Point Protocol over Ethernet), see RFC document below. It is is split in two parts, Client and Server containing the code for the client and server machines connected within an Ethernet network.
 
 ## Motivation
 
