@@ -12,7 +12,7 @@ Run makefile files on client and server machines.
 
 ## API
 
-[https://tools.ietf.org/html/rfc2516] RFC 2516 Transmitting PPP Over Ethernet
+[RFC 2516 Transmitting PPP Over Ethernet](https://tools.ietf.org/html/rfc2516)
 
 ## Contributors
 
